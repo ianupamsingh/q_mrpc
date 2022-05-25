@@ -26,8 +26,8 @@ def setup_dataset():
     if os.path.exists('test_data'):
         shutil.rmtree('test_data')
     os.mkdir('test_data')
-    temp = [['sample text', 'class1'], ['sample text', 'class2']] * 100
-    data = pd.DataFrame(temp, columns=['text', 'category'])
+    temp = [['sample text', 'sample text2', 'No'], ['sample text', 'sample text', 'Yes']] * 100
+    data = pd.DataFrame(temp, columns=['str1', 'str2', 'labels'])
     data.to_csv('test_data/sample.csv')
     yield
     shutil.rmtree('test_data')

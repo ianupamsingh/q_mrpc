@@ -1,0 +1,9 @@
+venv
+model
+data
+tests
+.git
+.gitignore
+README.md
+Dockerfile*
+docker-compose*

@@ -2,46 +2,40 @@ from typing import Optional
 
 from config import DataConfig
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+import csv
 from sklearn.model_selection import StratifiedShuffleSplit
 import tensorflow as tf
 
 
 class Dataset:
     """Reads pd.Dataframe to create tf.data.Dataset"""
-    def __init__(self, config: DataConfig, max_len: Optional[int] = 512):
+    def __init__(self, config: DataConfig, max_len: Optional[int] = 128, shuffle: bool = True):
         self.config = config
         self.max_len = max_len
-        self.df = pd.read_csv(self.config.input_path)
-        if self.config.x_column not in self.df.keys() or self.config.y_column not in self.df.keys():
-            raise ValueError(f'Make sure columns `{self.config.x_column}` and `{self.config.y_column}` are present in df')
-        self.label_encoder = None
-        self.encode_labels()
+        self.shuffle = shuffle
+        self.df = pd.read_csv(self.config.input_path, sep='\t', quoting=csv.QUOTE_NONE)
+        if self.config.str1_column not in self.df.keys() or self.config.str2_column not in self.df.keys() or\
+                self.config.label_column not in self.df.keys():
+            raise ValueError(f'Make sure text and label columns are present in df')
 
     def generate(self):
-        """Generate `train` and `valid` datasets from given `pd.Dataframe`"""
-        train_df, valid_df = self.split_data()
+        """Generate dataset from given `pd.Dataframe`"""
+        # train_df, valid_df = self.split_data()
 
-        train_df.rename(columns={self.config.x_column: 'text'}, inplace=True)
-        valid_df.rename(columns={self.config.x_column: 'text'}, inplace=True)
-        train_df['dummy'] = ''
-        valid_df['dummy'] = ''
-        train_data = tf.data.Dataset.from_tensor_slices((dict(train_df[['text', 'dummy']]), train_df['label_id'].values))
-        valid_data = tf.data.Dataset.from_tensor_slices((dict(valid_df[['text', 'dummy']]), valid_df['label_id'].values))
+        self.df.rename(columns={self.config.str1_column: 'str1', self.config.str2_column: 'str2',
+                                self.config.label_column: 'label'}, inplace=True)
 
-        train_data = train_data.shuffle(10000).batch(self.config.train_batch_size, drop_remainder=True)\
-            .prefetch(tf.data.experimental.AUTOTUNE)
+        data = tf.data.Dataset.from_tensor_slices((dict(self.df[['str1', 'str2']]), self.df['label'].values))
 
-        valid_data = valid_data.batch(self.config.valid_batch_size, drop_remainder=True)\
-            .prefetch(tf.data.experimental.AUTOTUNE)
+        if self.shuffle:
+            data = data.shuffle(10000)\
+                .batch(self.config.batch_size, drop_remainder=False)\
+                .prefetch(tf.data.experimental.AUTOTUNE)
+        else:
+            data = data.batch(self.config.batch_size, drop_remainder=False)\
+                .prefetch(tf.data.experimental.AUTOTUNE)
 
-        return train_data, valid_data
-
-    def encode_labels(self):
-        """Creates label encoding from label classes present in `y_column`"""
-        self.label_encoder = LabelEncoder()
-        self.label_encoder.fit(self.df[self.config.y_column])
-        self.df['label_id'] = self.label_encoder.transform(self.df[self.config.y_column])
+        return data
 
     def split_data(self):
         """Stratified splitting to create `train` and `valid` Dataframes"""

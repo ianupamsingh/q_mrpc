@@ -1,6 +1,6 @@
 import os
 import yaml
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 
 import numpy as np
 import tensorflow as tf
@@ -8,7 +8,7 @@ import tensorflow_text
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import tensorflow_hub as hub
 
-from config import ExperimentConfig
+from config import ExperimentConfig, DataConfig
 from dataset import Dataset
 
 
@@ -38,8 +38,8 @@ class BERTClassifier:
         """Creates and compiles `tf.keras.Model` that takes `text` input and outputs `logits`"""
         # Step 1: tokenize batches of text inputs.
         self.preprocessor = hub.load(self.config.preprocessor_model)
-        text_input = [tf.keras.layers.Input(shape=(), dtype=tf.string, name='text'),
-                      tf.keras.layers.Input(shape=(), dtype=tf.string, name='dummy')]
+        text_input = [tf.keras.layers.Input(shape=(), dtype=tf.string, name='str1'),
+                      tf.keras.layers.Input(shape=(), dtype=tf.string, name='str2')]
         tokenize = hub.KerasLayer(self.preprocessor.tokenize, name='tokenizer')
         tokenized_inputs = [tokenize(t) for t in text_input]
 
@@ -71,9 +71,12 @@ class BERTClassifier:
         return model
 
     def _get_data(self):
-        dataset = Dataset(self.config.dataset, self.config.max_len)
-        train_data, valid_data = dataset.generate()
-        self.config.labels = list(dataset.label_encoder.classes_)
+        train_dataset = Dataset(self.config.train_dataset, self.config.max_len)
+        train_data = train_dataset.generate()
+        valid_dataset = Dataset(self.config.valid_dataset, self.config.max_len)
+        valid_data = valid_dataset.generate()
+        # self.config.labels = list(dataset.label_encoder.classes_)
+        self.config.labels = ['No', 'Yes']
         return train_data, valid_data
 
     def train(self):
@@ -96,18 +99,18 @@ class BERTClassifier:
         self.history = self.model.fit(train_data, validation_data=valid_data, epochs=self.config.epochs,
                                       callbacks=[checkpoint, early_stopping], verbose=1)
 
-    def predict(self, texts: Union[str, List[str]]) -> List[str]:
-        """Predicts class of given text(s)
+    def predict(self, texts: Union[Tuple[str, str], List[Tuple[str, str]]]) -> List[str]:
+        """Predicts class of given pair(s) of strings
             Args:
-                texts: str or list[str], text to predict classes for
+                texts: Tuple[str, str] or list[Tuple[str, str]], text to predict classes for
             Ret:
                 labels: list[str], predicted class texts belong to
         """
-        if type(texts) == str:
+        if type(texts) == tuple:
             texts = [texts]
-        dummy_text = [''] * len(texts)
+        strings = list(map(list, zip(*texts)))
 
-        predictions = self.model.predict({'text': tf.constant(texts), 'dummy': tf.constant(dummy_text)})
+        predictions = self.model.predict({'str1': tf.constant(strings[0]), 'str2': tf.constant(strings[1])})
         label_ids = np.argmax(predictions, axis=1)
 
         if not self.config.labels:
@@ -116,3 +119,23 @@ class BERTClassifier:
         labels = [self.config.labels[label_id] for label_id in label_ids]
         return labels
 
+    def evaluate(self) -> dict:
+        """
+        Evaluate model on test dataset
+            Ret:
+                dictionary containing model accuracy, precision, recall and f1
+        """
+        from sklearn.metrics import precision_recall_fscore_support
+        from sklearn.metrics import accuracy_score
+
+        test_dataset = Dataset(DataConfig(input_path='/content/mrpc/msr_paraphrase_test.txt', batch_size=1), 128, shuffle=False)
+        test_data = test_dataset.generate()
+
+        y_true = [each[1][0] for each in list(test_data.as_numpy_iterator())]
+        y_pred = np.argmax(self.model.predict(test_data), axis=1)
+
+        f1_scores = precision_recall_fscore_support(y_true, y_pred, average='binary')
+        accuracy = accuracy_score(y_true, y_pred)
+
+        return {'accuracy': accuracy, 'precision': f1_scores[0],
+                'recall': f1_scores[1], 'f1_score': f1_scores[2]}

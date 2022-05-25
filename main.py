@@ -21,21 +21,26 @@ def get_experiment_config(configuration: Optional[str] = None) -> ExperimentConf
             preprocessor_model='https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3',
             pretrained_model='https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/2',
             output_dir='model',
-            labels=None,
+            labels=['No', 'Yes'],
             max_len=512,
             learning_rate=2e-5,
             epochs=1,
             optimizer='adam',
             dropout=0.2,
-            dataset=DataConfig(
-                x_column='text',
-                y_column='category',
-                train_batch_size=8,
-                valid_batch_size=8,
-                input_path='data/sample.csv',
-                seed=42,
-                split_ratio=0.2
-            ))
+            train_dataset=DataConfig(
+                str1_column='#1 String',
+                str2_column='#2 String',
+                label_column='Quality',
+                batch_size=8,
+                input_path='data/train.tsv',
+                seed=42),
+            valid_dataset=DataConfig(
+                str1_column='#1 String',
+                str2_column='#2 String',
+                label_column='Quality',
+                batch_size=8,
+                input_path='data/dev.tsv',
+                seed=42))
     return configuration_
 
 

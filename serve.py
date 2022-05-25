@@ -34,5 +34,5 @@ def classify(request: ClassifyRequest):
 
     predictions = classifier.predict(request.text)
 
-    return {'is_paraphrase': predictions}
+    return {'paraphrase_prob': predictions}
 

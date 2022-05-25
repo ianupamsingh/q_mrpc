@@ -21,6 +21,7 @@ class BERTClassifier:
             self.config = ExperimentConfig.from_yaml(os.path.join(config, 'params.yaml'))
         else:
             self.config = config
+        self.config.labels = ['No', 'Yes']
 
         if training:
             self.model = None
@@ -63,12 +64,12 @@ class BERTClassifier:
         dropout = tf.keras.layers.Dropout(self.config.dropout, name='dropout')(pooled_output)
 
         # Step 5: Add classifier layer
-        output = tf.keras.layers.Dense(len(self.config.labels), activation='softmax', name='output')(dropout)
+        output = tf.keras.layers.Dense(1, activation='sigmoid', name='output')(dropout)
 
         model = tf.keras.Model(inputs=text_input, outputs=output)
 
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=self.config.learning_rate),
-                      loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+                      loss='binary_crossentropy',
                       metrics=['accuracy'])
 
         return model
@@ -79,7 +80,6 @@ class BERTClassifier:
         valid_dataset = Dataset(self.config.valid_dataset, self.config.max_len)
         valid_data = valid_dataset.generate()
         # self.config.labels = list(dataset.label_encoder.classes_)
-        self.config.labels = ['No', 'Yes']
         return train_data, valid_data
 
     def train(self):
@@ -102,7 +102,7 @@ class BERTClassifier:
         self.history = self.model.fit(train_data, validation_data=valid_data, epochs=self.config.epochs,
                                       callbacks=[checkpoint, early_stopping], verbose=1)
 
-    def predict(self, texts: Union[Tuple[str, str], List[Tuple[str, str]]]) -> List[str]:
+    def predict(self, texts: Union[Tuple[str, str], List[Tuple[str, str]]]) -> List[float]:
         """Predicts class of given pair(s) of strings
             Args:
                 texts: Tuple[str, str] or list[Tuple[str, str]], text to predict classes for
@@ -114,13 +114,13 @@ class BERTClassifier:
         strings = list(map(list, zip(*texts)))
 
         predictions = self.model.predict({'str1': tf.constant(strings[0]), 'str2': tf.constant(strings[1])})
-        label_ids = np.argmax(predictions, axis=1)
+        # label_ids = np.argmax(predictions, axis=1)
+        # if not self.config.labels:
+        #     raise ValueError(f'Labels not defined. Make sure `params.yaml` is present in `{self.config.output_dir}`'
+        #                      f' and contains `labels` as not `None`')
+        # labels = [self.config.labels[label_id] for label_id in label_ids]
 
-        if not self.config.labels:
-            raise ValueError(f'Labels not defined. Make sure `params.yaml` is present in `{self.config.output_dir}`'
-                             f' and contains `labels` as not `None`')
-        labels = [self.config.labels[label_id] for label_id in label_ids]
-        return labels
+        return list(np.squeeze(predictions, axis=1))
 
     def evaluate(self) -> dict:
         """
@@ -131,11 +131,11 @@ class BERTClassifier:
         from sklearn.metrics import precision_recall_fscore_support
         from sklearn.metrics import accuracy_score
 
-        test_dataset = Dataset(DataConfig(input_path='/content/mrpc/msr_paraphrase_test.txt', batch_size=1), 128, shuffle=False)
+        test_dataset = Dataset(DataConfig(input_path='data/msr_paraphrase_test.txt', batch_size=1), 128, shuffle=False)
         test_data = test_dataset.generate()
 
         y_true = [each[1][0] for each in list(test_data.as_numpy_iterator())]
-        y_pred = np.argmax(self.model.predict(test_data), axis=1)
+        y_pred = np.round(self.model.predict(test_data), 0)
 
         f1_scores = precision_recall_fscore_support(y_true, y_pred, average='binary')
         accuracy = accuracy_score(y_true, y_pred)

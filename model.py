@@ -1,4 +1,6 @@
 import os
+import shutil
+
 import yaml
 from typing import Union, Optional, List, Tuple
 
@@ -24,7 +26,8 @@ class BERTClassifier:
             self.model = None
             self.history = None
             if os.path.exists(self.config.output_dir) and os.listdir(self.config.output_dir):
-                raise FileExistsError(f"Output directory '{self.config.output_dir}' already exists and is not empty.")
+                shutil.rmtree(self.config.output_dir)
+                # raise FileExistsError(f"Output directory '{self.config.output_dir}' already exists and is not empty.")
             if not os.path.exists(self.config.output_dir):
                 os.makedirs(self.config.output_dir)
         else:

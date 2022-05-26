@@ -7,7 +7,7 @@ from config import ExperimentConfig
 from model import BERTClassifier
 
 app = FastAPI()
-os.environ['MODEL_DIR'] = 'C:\\Users\\Anupam Singh\\Documents\\GitHub\\q_mrpc\\model'
+# os.environ['MODEL_DIR'] = 'C:\\Users\\Anupam Singh\\Documents\\GitHub\\q_mrpc\\model'
 params_path = os.path.join(os.environ["MODEL_DIR"], 'params.yaml')
 config = ExperimentConfig.from_yaml(params_path)
 classifier = BERTClassifier(config, training=False)
@@ -34,5 +34,5 @@ def classify(request: ClassifyRequest):
 
     predictions = classifier.predict(request.text)
 
-    return {'paraphrase_prob': predictions}
+    return {'paraphrase_prob': predictions.tolist()}
 

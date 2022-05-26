@@ -102,7 +102,7 @@ class BERTClassifier:
         self.history = self.model.fit(train_data, validation_data=valid_data, epochs=self.config.epochs,
                                       callbacks=[checkpoint, early_stopping], verbose=1)
 
-    def predict(self, texts: Union[Tuple[str, str], List[Tuple[str, str]]]) -> List[float]:
+    def predict(self, texts: Union[Tuple[str, str], List[Tuple[str, str]]]) -> object:
         """Predicts class of given pair(s) of strings
             Args:
                 texts: Tuple[str, str] or list[Tuple[str, str]], text to predict classes for
@@ -120,7 +120,7 @@ class BERTClassifier:
         #                      f' and contains `labels` as not `None`')
         # labels = [self.config.labels[label_id] for label_id in label_ids]
 
-        return list(np.squeeze(predictions, axis=1))
+        return np.squeeze(predictions, axis=1)
 
     def evaluate(self) -> dict:
         """
